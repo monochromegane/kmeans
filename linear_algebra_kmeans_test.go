@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"gonum.org/v1/gonum/floats"
+	"gonum.org/v1/gonum/mat"
 )
 
-func TestNaiveKMeansCentroids(t *testing.T) {
+func TestLinearAlgebraKMeansCentroids(t *testing.T) {
 	numClusters := 3
 	numFeatures := 3
-	km, err := NewNaiveKMeans(numClusters, numFeatures, INIT_NONE)
+	km, err := NewLinearAlgebraKMeans(numClusters, numFeatures, INIT_NONE)
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
@@ -20,7 +21,7 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 		{1.0, 1.0, 1.0},
 		{2.0, 2.0, 2.0},
 	}
-	km.centroids = initCentroids
+	km.centroids = mat.NewDense(numClusters, numFeatures, slices.Concat(initCentroids...))
 
 	X := []float64{
 		1.0, 2.0, 3.0,
@@ -62,14 +63,13 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 		}
 	}
 }
-
-func TestNaiveKMeansPredict(t *testing.T) {
+func TestLinearAlgebraKMeansPredict(t *testing.T) {
 	trainX, err := generate4ClusterDataset(2, 5000) // 2dim, 20,000 samples
 	if err != nil {
 		t.Fatalf("Failed to generate 4 cluster dataset: %v", err)
 	}
 
-	km, err := NewNaiveKMeans(4, 2, INIT_NONE)
+	km, err := NewLinearAlgebraKMeans(4, 2, INIT_NONE)
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestNaiveKMeansPredict(t *testing.T) {
 		{5.5, -5.5},
 		{5.5, 5.5},
 	}
-	km.centroids = initCentroids
+	km.centroids = mat.NewDense(4, 2, slices.Concat(initCentroids...))
 
 	err = km.Train(trainX, 100)
 	if err != nil {
