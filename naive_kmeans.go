@@ -56,13 +56,16 @@ func (km *NaiveKMeans) Train(data []float64, iter int) error {
 		for n := 0; n < N; n++ {
 			x := data[n*km.numFeatures : (n+1)*km.numFeatures]
 
-			naiveMinIndecies(x, km.centroids, func(minCol int) bool {
+			err := naiveMinIndecies(x, km.centroids, func(minCol int) error {
 				for d := 0; d < km.numFeatures; d++ {
 					newCentroids[minCol][d] += x[d]
 				}
 				counts[minCol]++
-				return false
+				return nil
 			})
+			if err != nil {
+				return err
+			}
 		}
 		for k := 0; k < km.numClusters; k++ {
 			if counts[k] == 0 {
@@ -79,7 +82,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int) error {
 	return nil
 }
 
-func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int) bool) error {
+func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int) error) error {
 	if len(data) == 0 {
 		return ErrEmptyData
 	}
@@ -91,9 +94,12 @@ func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int) bool) er
 	for n := 0; n < N; n++ {
 		x := data[n*km.numFeatures : (n+1)*km.numFeatures]
 
-		naiveMinIndecies(x, km.centroids, func(minCol int) bool {
+		err := naiveMinIndecies(x, km.centroids, func(minCol int) error {
 			return fn(n, minCol)
 		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -115,7 +121,7 @@ func (km *NaiveKMeans) initializeRandom(data []float64) {
 	}
 }
 
-func naiveMinIndecies(x []float64, centroids [][]float64, fn func(minCol int) bool) {
+func naiveMinIndecies(x []float64, centroids [][]float64, fn func(minCol int) error) error {
 	numClusters := len(centroids)
 	minIdx := 0
 	minVal := naiveSquaredEuclideanDistance(x, centroids[0])
@@ -126,7 +132,7 @@ func naiveMinIndecies(x []float64, centroids [][]float64, fn func(minCol int) bo
 			minIdx = k
 		}
 	}
-	fn(minIdx)
+	return fn(minIdx)
 }
 
 func naiveSquaredEuclideanDistance(x, y []float64) float64 {
