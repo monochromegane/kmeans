@@ -1,6 +1,7 @@
 package kmeans
 
 import (
+	"math"
 	"math/rand/v2"
 
 	"gonum.org/v1/gonum/mat"
@@ -32,7 +33,7 @@ func NewLinearAlgebraKMeans(numClusters, numFeatures, initMethod int) (*LinearAl
 	}, nil
 }
 
-func (km *LinearAlgebraKMeans) Train(data []float64, iter int) error {
+func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) error {
 	if len(data) == 0 {
 		return ErrEmptyData
 	}
@@ -48,6 +49,9 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int) error {
 	}
 	xNorm := normVec(X)
 	XX := tile(N, km.numClusters, xNorm)
+	X_EC := mat.NewDense(N, km.numFeatures, nil)
+	X_ECT_X_EC := mat.NewDense(km.numFeatures, km.numFeatures, nil)
+	loss := 0.0
 
 	for i := 0; i < iter; i++ {
 		dist := squaredEuclideanDistance(X, km.centroids, XX)
@@ -63,6 +67,16 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int) error {
 
 		km.centroids.Mul(E.T(), X)
 		km.centroids.Mul(invETE, km.centroids)
+
+		// Calculate loss
+		X_EC.Mul(E, km.centroids)
+		X_EC.Sub(X, X_EC)
+		X_ECT_X_EC.Mul(X_EC.T(), X_EC)
+		newLoss := mat.Trace(X_ECT_X_EC)
+		if math.Abs(loss-newLoss) < tol {
+			break
+		}
+		loss = newLoss
 	}
 	return nil
 }

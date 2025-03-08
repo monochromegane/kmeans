@@ -31,7 +31,7 @@ func NewNaiveKMeans(numClusters, numFeatures, initMethod int) (*NaiveKMeans, err
 	}, nil
 }
 
-func (km *NaiveKMeans) Train(data []float64, iter int) error {
+func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
 	if len(data) == 0 {
 		return ErrEmptyData
 	}
@@ -43,6 +43,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int) error {
 		km.initializeRandom(data)
 	}
 
+	loss := 0.0
 	N := int(len(data) / km.numFeatures)
 	for i := 0; i < iter; i++ {
 		counts := make([]int, km.numClusters)
@@ -77,6 +78,24 @@ func (km *NaiveKMeans) Train(data []float64, iter int) error {
 		}
 
 		km.centroids = newCentroids
+
+		// Calculate loss
+		newLoss := 0.0
+		for n := 0; n < N; n++ {
+			x := data[n*km.numFeatures : (n+1)*km.numFeatures]
+
+			err := naiveMinIndecies(x, km.centroids, func(minCol int) error {
+				newLoss += naiveSquaredEuclideanDistance(x, km.centroids[minCol])
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		if math.Abs(loss-newLoss) < tol {
+			break
+		}
+		loss = newLoss
 	}
 
 	return nil

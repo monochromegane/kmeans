@@ -28,7 +28,7 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 		7.0, 8.0, 9.0,
 		-1.0, -2.0, -3.0,
 	}
-	err = km.Train(X, 1)
+	err = km.Train(X, 1, 0.01)
 	if err != nil {
 		t.Fatalf("Failed to train NaiveKMeans: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestNaiveKMeansPredict(t *testing.T) {
 	}
 	km.centroids = initCentroids
 
-	err = km.Train(trainX, 100)
+	err = km.Train(trainX, 100, 0.01)
 	if err != nil {
 		t.Fatalf("Failed to train NaiveKMeans: %v", err)
 	}
