@@ -29,7 +29,7 @@ func TestLinearAlgebraKMeansCentroids(t *testing.T) {
 		7.0, 8.0, 9.0,
 		-1.0, -2.0, -3.0,
 	}
-	err = km.Train(X, 1, 0.01)
+	_, _, err = km.Train(X, 1, 0.01)
 	if err != nil {
 		t.Fatalf("Failed to train NaiveKMeans: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestLinearAlgebraKMeansPredict(t *testing.T) {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
 
-	err = km.Train(trainX, 100, 0.01)
+	_, _, err = km.Train(trainX, 100, 0.01)
 	if err != nil {
 		t.Fatalf("Failed to train NaiveKMeans: %v", err)
 	}

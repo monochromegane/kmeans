@@ -35,15 +35,15 @@ func NewLinearAlgebraKMeans(numClusters, numFeatures, initMethod int) (*LinearAl
 	}, nil
 }
 
-func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) error {
+func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) (int, float64, error) {
 	if len(data) == 0 {
-		return ErrEmptyData
+		return 0, 0.0, ErrEmptyData
 	}
 	if len(data)%km.numFeatures != 0 {
-		return ErrInvalidDataLength
+		return 0, 0.0, ErrInvalidDataLength
 	}
 	if km.numClusters > len(data)/km.numFeatures {
-		return ErrFewerClustersThanData
+		return 0, 0.0, ErrFewerClustersThanData
 	}
 
 	N := int(len(data) / km.numFeatures)
@@ -55,7 +55,6 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 	E := mat.NewDense(N, km.numClusters, nil)
 	ETE := mat.NewDense(km.numClusters, km.numClusters, nil)
 	invETEData := make([]float64, km.numClusters)
-	loss := 0.0
 
 	if km.initMethod == INIT_RANDOM {
 		km.initializeRandom(X)
@@ -63,11 +62,13 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 		km.initializeKMeansPlusPlus(X, xNorm)
 	}
 
+	loss := 0.0
+	numIter := 0
 	for i := 0; i < iter; i++ {
 		squaredEuclideanDistance(X, km.centroids, XX, dist)
 		newLoss, err := membership(dist, E)
 		if err != nil {
-			return err
+			return 0, 0.0, err
 		}
 		if math.Abs(loss-newLoss) < tol {
 			break
@@ -82,8 +83,9 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 
 		km.centroids.Mul(E.T(), X)
 		km.centroids.Mul(invETE, km.centroids)
+		numIter = i
 	}
-	return nil
+	return numIter, loss, nil
 }
 
 func (km *LinearAlgebraKMeans) Predict(data []float64, fn func(row, minCol int, minVal float64) error) error {

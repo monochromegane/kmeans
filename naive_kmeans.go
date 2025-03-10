@@ -31,15 +31,15 @@ func NewNaiveKMeans(numClusters, numFeatures, initMethod int) (*NaiveKMeans, err
 	}, nil
 }
 
-func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
+func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float64, error) {
 	if len(data) == 0 {
-		return ErrEmptyData
+		return 0, 0.0, ErrEmptyData
 	}
 	if len(data)%km.numFeatures != 0 {
-		return ErrInvalidDataLength
+		return 0, 0.0, ErrInvalidDataLength
 	}
 	if km.numClusters > len(data)/km.numFeatures {
-		return ErrFewerClustersThanData
+		return 0, 0.0, ErrFewerClustersThanData
 	}
 
 	if km.initMethod == INIT_RANDOM {
@@ -49,6 +49,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
 	}
 
 	loss := 0.0
+	numIter := 0
 	N := int(len(data) / km.numFeatures)
 	for i := 0; i < iter; i++ {
 		counts := make([]int, km.numClusters)
@@ -72,7 +73,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
 				return nil
 			})
 			if err != nil {
-				return err
+				return 0, 0.0, err
 			}
 			if math.Abs(loss-newLoss) < tol {
 				break
@@ -89,9 +90,10 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
 		}
 
 		km.centroids = newCentroids
+		numIter = i
 	}
 
-	return nil
+	return numIter, loss, nil
 }
 
 func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int, minVal float64) error) error {
