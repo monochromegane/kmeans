@@ -140,7 +140,7 @@ func (km *LinearAlgebraKMeans) initializeKMeansPlusPlus(X *mat.Dense, xNorm *mat
 
 	indecies := make([]int, N)
 	indecies[0] = idx
-	dist := mat.NewDense(N, km.numClusters, nil)
+	dist := mat.NewDense(N, 1, nil)
 
 	for k := 1; k < km.numClusters; k++ {
 		squaredEuclideanDistance(X, latestCentroid, XX, dist)
