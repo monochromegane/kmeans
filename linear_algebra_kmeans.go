@@ -62,7 +62,7 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) (int
 		km.initializeKMeansPlusPlus(X, xNorm)
 	}
 
-	loss := 0.0
+	loss := math.Inf(1)
 	numIter := 0
 	for i := 0; i < iter; i++ {
 		squaredEuclideanDistance(X, km.centroids, XX, dist)
