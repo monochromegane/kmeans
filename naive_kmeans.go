@@ -62,16 +62,22 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
 		for n := 0; n < N; n++ {
 			x := data[n*km.numFeatures : (n+1)*km.numFeatures]
 
+			newLoss := 0.0
 			err := naiveMinIndecies(x, km.centroids, func(minCol int, minDist float64) error {
 				for d := 0; d < km.numFeatures; d++ {
 					newCentroids[minCol][d] += x[d]
 				}
 				counts[minCol]++
+				newLoss += minDist
 				return nil
 			})
 			if err != nil {
 				return err
 			}
+			if math.Abs(loss-newLoss) < tol {
+				break
+			}
+			loss = newLoss
 		}
 		for k := 0; k < km.numClusters; k++ {
 			if counts[k] == 0 {
@@ -83,24 +89,6 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
 		}
 
 		km.centroids = newCentroids
-
-		// Calculate loss
-		newLoss := 0.0
-		for n := 0; n < N; n++ {
-			x := data[n*km.numFeatures : (n+1)*km.numFeatures]
-
-			err := naiveMinIndecies(x, km.centroids, func(minCol int, minDist float64) error {
-				newLoss += minDist
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-		if math.Abs(loss-newLoss) < tol {
-			break
-		}
-		loss = newLoss
 	}
 
 	return nil
