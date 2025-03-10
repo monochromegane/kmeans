@@ -49,6 +49,8 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 	}
 	xNorm := normVec(X)
 	XX := tile(N, km.numClusters, xNorm)
+	ETE := mat.NewDense(km.numClusters, km.numClusters, nil)
+	invETE := mat.NewDense(km.numClusters, km.numClusters, nil)
 	X_EC := mat.NewDense(N, km.numFeatures, nil)
 	X_ECT_X_EC := mat.NewDense(km.numFeatures, km.numFeatures, nil)
 	loss := 0.0
@@ -60,9 +62,7 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 			return err
 		}
 
-		ETE := mat.NewDense(km.numClusters, km.numClusters, nil)
 		ETE.Mul(E.T(), E)
-		invETE := mat.NewDense(km.numClusters, km.numClusters, nil)
 		invETE.Inverse(ETE.DiagView())
 
 		km.centroids.Mul(E.T(), X)
