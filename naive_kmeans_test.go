@@ -69,17 +69,10 @@ func TestNaiveKMeansPredict(t *testing.T) {
 		t.Fatalf("Failed to generate 4 cluster dataset: %v", err)
 	}
 
-	km, err := NewNaiveKMeans(4, 2, INIT_NONE)
+	km, err := NewNaiveKMeans(4, 2, INIT_KMEANS_PLUS_PLUS)
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
-	initCentroids := [][]float64{
-		{-5.5, -5.5},
-		{-5.5, 5.5},
-		{5.5, -5.5},
-		{5.5, 5.5},
-	}
-	km.centroids = initCentroids
 
 	err = km.Train(trainX, 100, 0.01)
 	if err != nil {
