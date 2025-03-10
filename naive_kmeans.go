@@ -38,6 +38,9 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
 	if len(data)%km.numFeatures != 0 {
 		return ErrInvalidDataLength
 	}
+	if km.numClusters > len(data)/km.numFeatures {
+		return ErrFewerClustersThanData
+	}
 
 	if km.initMethod == INIT_RANDOM {
 		km.initializeRandom(data)
@@ -103,7 +106,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) error {
 	return nil
 }
 
-func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int) error) error {
+func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int, minVal float64) error) error {
 	if len(data) == 0 {
 		return ErrEmptyData
 	}
@@ -116,7 +119,7 @@ func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int) error) e
 		x := data[n*km.numFeatures : (n+1)*km.numFeatures]
 
 		err := naiveMinIndecies(x, km.centroids, func(minCol int, minDist float64) error {
-			return fn(n, minCol)
+			return fn(n, minCol, minDist)
 		})
 		if err != nil {
 			return err

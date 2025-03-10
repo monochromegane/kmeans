@@ -3,7 +3,9 @@ package kmeans
 import (
 	"math"
 	"math/rand/v2"
+	"sort"
 
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -40,13 +42,13 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 	if len(data)%km.numFeatures != 0 {
 		return ErrInvalidDataLength
 	}
+	if km.numClusters > len(data)/km.numFeatures {
+		return ErrFewerClustersThanData
+	}
 
 	N := int(len(data) / km.numFeatures)
 	X := mat.NewDense(N, km.numFeatures, data)
 
-	if km.initMethod == INIT_RANDOM {
-		km.initializeRandom(X)
-	}
 	xNorm := normVec(X)
 	XX := tile(N, km.numClusters, xNorm)
 	ETE := mat.NewDense(km.numClusters, km.numClusters, nil)
@@ -54,6 +56,12 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 	X_EC := mat.NewDense(N, km.numFeatures, nil)
 	X_ECT_X_EC := mat.NewDense(km.numFeatures, km.numFeatures, nil)
 	loss := 0.0
+
+	if km.initMethod == INIT_RANDOM {
+		km.initializeRandom(X)
+	} else if km.initMethod == INIT_KMEANS_PLUS_PLUS {
+		km.initializeKMeansPlusPlus(X, xNorm)
+	}
 
 	for i := 0; i < iter; i++ {
 		dist := squaredEuclideanDistance(X, km.centroids, XX)
@@ -81,7 +89,7 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 	return nil
 }
 
-func (km *LinearAlgebraKMeans) Predict(data []float64, fn func(row, minCol int) error) error {
+func (km *LinearAlgebraKMeans) Predict(data []float64, fn func(row, minCol int, minVal float64) error) error {
 	if len(data) == 0 {
 		return ErrEmptyData
 	}
@@ -118,10 +126,60 @@ func (km *LinearAlgebraKMeans) initializeRandom(X *mat.Dense) {
 	}
 }
 
+func (km *LinearAlgebraKMeans) initializeKMeansPlusPlus(X *mat.Dense, xNorm *mat.VecDense) {
+	N, _ := X.Dims()
+	idx := rand.IntN(N)
+	distances := make([]float64, N)
+	for n := 0; n < N; n++ {
+		distances[n] = math.Inf(1)
+	}
+
+	XX := tile(N, 1, xNorm)
+	centroidsData := make([]float64, km.numClusters*km.numFeatures)
+	latestCentroidData := X.RowView(idx).(*mat.VecDense).RawVector().Data
+	copy(centroidsData[0:len(latestCentroidData)], latestCentroidData)
+	latestCentroid := mat.NewDense(1, km.numFeatures, latestCentroidData)
+
+	indecies := make([]int, N)
+	indecies[0] = idx
+
+	for k := 1; k < km.numClusters; k++ {
+		dist := squaredEuclideanDistance(X, latestCentroid, XX)
+		minIndecies(dist, func(row, minCol int, minVal float64) error {
+			if minVal < distances[row] {
+				distances[row] = minVal
+			}
+			return nil
+		})
+
+		cumSumDist := make([]float64, N)
+		floats.CumSum(cumSumDist, dist.ColView(0).(*mat.VecDense).RawVector().Data)
+		threshold := rand.Float64() * cumSumDist[N-1]
+	SAMPLE:
+		for {
+			idx := sort.Search(N, func(i int) bool {
+				return cumSumDist[i] >= threshold
+			})
+			for j := 0; j < k; j++ {
+				if indecies[j] == idx {
+					threshold = rand.Float64() * cumSumDist[N-1]
+					continue SAMPLE
+				}
+			}
+			indecies[k] = idx
+			latestCentroidData = X.RowView(idx).(*mat.VecDense).RawVector().Data
+			copy(centroidsData[k*km.numFeatures:(k+1)*km.numFeatures], latestCentroidData)
+			latestCentroid = mat.NewDense(1, km.numFeatures, latestCentroidData)
+			break
+		}
+	}
+	km.centroids = mat.NewDense(km.numClusters, km.numFeatures, centroidsData)
+}
+
 func membership(dist *mat.Dense) (*mat.Dense, error) {
 	N, K := dist.Dims()
 	E := mat.NewDense(N, K, nil)
-	err := minIndecies(dist, func(row, minCol int) error {
+	err := minIndecies(dist, func(row, minCol int, minVal float64) error {
 		E.Set(row, minCol, 1)
 		return nil
 	})
@@ -131,7 +189,7 @@ func membership(dist *mat.Dense) (*mat.Dense, error) {
 	return E, nil
 }
 
-func minIndecies(dist *mat.Dense, fn func(row, minCol int) error) error {
+func minIndecies(dist *mat.Dense, fn func(row, minCol int, minVal float64) error) error {
 	N, K := dist.Dims()
 
 	for i := 0; i < N; i++ {
@@ -144,7 +202,7 @@ func minIndecies(dist *mat.Dense, fn func(row, minCol int) error) error {
 				minIdx = j
 			}
 		}
-		err := fn(i, minIdx)
+		err := fn(i, minIdx, minVal)
 		if err != nil {
 			return err
 		}

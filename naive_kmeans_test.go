@@ -50,7 +50,7 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 	}
 
 	predictions := make([]int, len(centroids))
-	km.Predict(slices.Concat(centroids...), func(row, minCol int) error {
+	km.Predict(slices.Concat(centroids...), func(row, minCol int, minVal float64) error {
 		predictions[row] = minCol
 		return nil
 	})
@@ -88,7 +88,7 @@ func TestNaiveKMeansPredict(t *testing.T) {
 	}
 	epsilon := 0.05
 	predictions := make([]int, len(testX)/2)
-	km.Predict(testX, func(row, minCol int) error {
+	km.Predict(testX, func(row, minCol int, minVal float64) error {
 		predictions[row] = minCol
 		x := testX[row*2 : (row+1)*2]
 		if math.Abs(x[0]-centroids[minCol][0]) > epsilon || math.Abs(x[1]-centroids[minCol][1]) > epsilon {

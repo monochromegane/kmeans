@@ -11,3 +11,5 @@ var ErrInvalidNumClusters = fmt.Errorf("number of clusters must be greater than 
 var ErrInvalidNumFeatures = fmt.Errorf("number of features must be greater than 0")
 
 var ErrEmptyData = fmt.Errorf("data is empty")
+
+var ErrFewerClustersThanData = fmt.Errorf("number of clusters must be less than the number of data points")
