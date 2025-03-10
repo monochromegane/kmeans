@@ -51,6 +51,8 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 
 	xNorm := normVec(X)
 	XX := tile(N, km.numClusters, xNorm)
+	dist := mat.NewDense(N, km.numClusters, nil)
+	E := mat.NewDense(N, km.numClusters, nil)
 	ETE := mat.NewDense(km.numClusters, km.numClusters, nil)
 	invETE := mat.NewDense(km.numClusters, km.numClusters, nil)
 	X_EC := mat.NewDense(N, km.numFeatures, nil)
@@ -64,8 +66,8 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 	}
 
 	for i := 0; i < iter; i++ {
-		dist := squaredEuclideanDistance(X, km.centroids, XX)
-		E, err := membership(dist)
+		squaredEuclideanDistance(X, km.centroids, XX, dist)
+		err := membership(dist, E)
 		if err != nil {
 			return err
 		}
@@ -102,8 +104,9 @@ func (km *LinearAlgebraKMeans) Predict(data []float64, fn func(row, minCol int, 
 
 	xNorm := normVec(X)
 	XX := tile(N, km.numClusters, xNorm)
+	dist := mat.NewDense(N, km.numClusters, nil)
 
-	dist := squaredEuclideanDistance(X, km.centroids, XX)
+	squaredEuclideanDistance(X, km.centroids, XX, dist)
 	return minIndecies(dist, fn)
 }
 
@@ -142,9 +145,10 @@ func (km *LinearAlgebraKMeans) initializeKMeansPlusPlus(X *mat.Dense, xNorm *mat
 
 	indecies := make([]int, N)
 	indecies[0] = idx
+	dist := mat.NewDense(N, km.numClusters, nil)
 
 	for k := 1; k < km.numClusters; k++ {
-		dist := squaredEuclideanDistance(X, latestCentroid, XX)
+		squaredEuclideanDistance(X, latestCentroid, XX, dist)
 		minIndecies(dist, func(row, minCol int, minVal float64) error {
 			if minVal < distances[row] {
 				distances[row] = minVal
@@ -176,17 +180,15 @@ func (km *LinearAlgebraKMeans) initializeKMeansPlusPlus(X *mat.Dense, xNorm *mat
 	km.centroids = mat.NewDense(km.numClusters, km.numFeatures, centroidsData)
 }
 
-func membership(dist *mat.Dense) (*mat.Dense, error) {
-	N, K := dist.Dims()
-	E := mat.NewDense(N, K, nil)
+func membership(dist *mat.Dense, E *mat.Dense) error {
 	err := minIndecies(dist, func(row, minCol int, minVal float64) error {
 		E.Set(row, minCol, 1)
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return E, nil
+	return nil
 }
 
 func minIndecies(dist *mat.Dense, fn func(row, minCol int, minVal float64) error) error {
@@ -228,19 +230,16 @@ func tile(r, c int, x *mat.VecDense) *mat.Dense {
 	return X
 }
 
-func squaredEuclideanDistance(X, centroids, XX *mat.Dense) *mat.Dense {
+func squaredEuclideanDistance(X, centroids, XX, XCT *mat.Dense) {
 	N, _ := X.Dims()
 	K, _ := centroids.Dims()
 
 	cNorm := normVec(centroids)
 	CC := tile(K, N, cNorm)
 
-	XCT := mat.NewDense(N, K, nil)
 	XCT.Mul(X, centroids.T())
 	XCT.Scale(-2, XCT)
 
 	XCT.Add(XCT, XX)
 	XCT.Add(XCT, CC.T())
-
-	return XCT
 }
