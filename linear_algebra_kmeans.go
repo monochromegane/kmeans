@@ -54,7 +54,7 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 	dist := mat.NewDense(N, km.numClusters, nil)
 	E := mat.NewDense(N, km.numClusters, nil)
 	ETE := mat.NewDense(km.numClusters, km.numClusters, nil)
-	invETE := mat.NewDense(km.numClusters, km.numClusters, nil)
+	invETEData := make([]float64, km.numClusters)
 	loss := 0.0
 
 	if km.initMethod == INIT_RANDOM {
@@ -75,7 +75,10 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) erro
 		loss = newLoss
 
 		ETE.Mul(E.T(), E)
-		invETE.Inverse(ETE.DiagView())
+		for k := 0; k < km.numClusters; k++ {
+			invETEData[k] = 1.0 / ETE.At(k, k)
+		}
+		invETE := mat.NewDiagDense(km.numClusters, invETEData)
 
 		km.centroids.Mul(E.T(), X)
 		km.centroids.Mul(invETE, km.centroids)
