@@ -206,7 +206,7 @@ func naiveSquaredEuclideanDistance(x, y []float64) float64 {
 	sum := 0.0
 	for i := 0; i < len(x); i++ {
 		diff := x[i] - y[i]
-		sum += math.Pow(diff, 2)
+		sum += diff * diff
 	}
 	return sum
 }
