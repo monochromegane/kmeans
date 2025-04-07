@@ -193,7 +193,7 @@ func naiveMinIndecies(x []float64, centroids [][]float64, fn func(minCol int, mi
 	minIdx := 0
 	minVal := naiveSquaredEuclideanDistance(x, centroids[0])
 	for k := 1; k < numClusters; k++ {
-		val := naiveSquaredEuclideanDistance(x, centroids[k])
+		val := naiveSquaredEuclideanDistanceEarlyReturn(x, centroids[k], minVal)
 		if val < minVal {
 			minVal = val
 			minIdx = k
@@ -207,6 +207,18 @@ func naiveSquaredEuclideanDistance(x, y []float64) float64 {
 	for i := 0; i < len(x); i++ {
 		diff := x[i] - y[i]
 		sum += diff * diff
+	}
+	return sum
+}
+
+func naiveSquaredEuclideanDistanceEarlyReturn(x, y []float64, minVal float64) float64 {
+	sum := 0.0
+	for i := 0; i < len(x); i++ {
+		diff := x[i] - y[i]
+		sum += diff * diff
+		if sum > minVal {
+			return sum
+		}
 	}
 	return sum
 }
