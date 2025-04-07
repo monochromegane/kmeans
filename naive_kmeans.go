@@ -193,20 +193,18 @@ func (km *NaiveKMeans) initializeKMeansPlusPlus(data []float64) {
 	N := int(len(data) / km.numFeatures)
 	idx := rand.IntN(N)
 	distances := make([]float64, N)
-	for n := 0; n < N; n++ {
-		distances[n] = math.Inf(1)
-	}
 	centroids := [][]float64{
 		data[idx*km.numFeatures : (idx+1)*km.numFeatures],
 	}
 	latestCentroid := make([][]float64, 1)
 	latestCentroid[0] = centroids[0]
-	indecies := make([]int, N)
-	indecies[0] = idx
 
 	for k := 1; k < km.numClusters; k++ {
 		cumSumDist := make([]float64, N)
 		for n := 0; n < N; n++ {
+			if k == 1 {
+				distances[n] = math.Inf(1)
+			}
 			x := data[n*km.numFeatures : (n+1)*km.numFeatures]
 			naiveMinIndecies(x, latestCentroid, func(minCol int, minDist float64) error {
 				if minDist < distances[n] {
@@ -222,22 +220,20 @@ func (km *NaiveKMeans) initializeKMeansPlusPlus(data []float64) {
 		}
 
 		threshold := rand.Float64() * cumSumDist[N-1]
-	SAMPLE:
-		for n := 0; n < N; n++ {
-			x := data[n*km.numFeatures : (n+1)*km.numFeatures]
-			if cumSumDist[n] >= threshold {
-				for j := 0; j < k; j++ {
-					if indecies[j] == n {
-						threshold = rand.Float64() * cumSumDist[N-1]
-						continue SAMPLE
-					}
-				}
-				centroids = append(centroids, x)
-				indecies[k] = n
-				latestCentroid[0] = x
-				break
+		left, right := 0, N-1
+		var selectedIdx int
+		for left <= right {
+			mid := (left + right) / 2
+			if cumSumDist[mid] < threshold {
+				left = mid + 1
+			} else {
+				selectedIdx = mid
+				right = mid - 1
 			}
 		}
+		x := data[selectedIdx*km.numFeatures : (selectedIdx+1)*km.numFeatures]
+		centroids = append(centroids, x)
+		latestCentroid[0] = x
 	}
 	km.centroids = centroids
 }
