@@ -3,6 +3,9 @@ package kmeans
 import (
 	"math"
 	"math/rand/v2"
+	"runtime"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type NaiveKMeans struct {
@@ -51,30 +54,81 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 	loss := math.Inf(1)
 	numIter := 0
 	N := int(len(data) / km.numFeatures)
+
+	numWorkers := runtime.GOMAXPROCS(0)
+	chunkSize := N / numWorkers
+	if chunkSize == 0 {
+		chunkSize = 1
+		numWorkers = N
+	}
+
+	type result struct {
+		centroids [][]float64
+		counts    []int
+		loss      float64
+	}
+
+	var eg errgroup.Group
+	eg.SetLimit(numWorkers)
+
 	for i := 0; i < iter; i++ {
+		results := make(chan result, numWorkers)
+		for w := 0; w < numWorkers; w++ {
+			centroids := km.centroids
+			start := w * chunkSize
+			end := start + chunkSize
+			if w == numWorkers-1 {
+				end = N
+			}
+			eg.Go(func() error {
+				counts := make([]int, km.numClusters)
+				newCentroids := make([][]float64, km.numClusters)
+				for k := 0; k < km.numClusters; k++ {
+					newCentroids[k] = make([]float64, km.numFeatures)
+				}
+				loss := 0.0
+				for n := start; n < end; n++ {
+					x := data[n*km.numFeatures : (n+1)*km.numFeatures]
+
+					err := naiveMinIndecies(x, centroids, func(minCol int, minDist float64) error {
+						for d := 0; d < km.numFeatures; d++ {
+							newCentroids[minCol][d] += x[d]
+						}
+						counts[minCol]++
+						loss += minDist
+						return nil
+					})
+					if err != nil {
+						return err
+					}
+				}
+				results <- result{
+					centroids: newCentroids,
+					counts:    counts,
+					loss:      loss,
+				}
+				return nil
+			})
+		}
+		if err := eg.Wait(); err != nil {
+			return 0, 0.0, err
+		}
+		close(results)
+
 		counts := make([]int, km.numClusters)
 		newCentroids := make([][]float64, km.numClusters)
 		for k := 0; k < km.numClusters; k++ {
 			newCentroids[k] = make([]float64, km.numFeatures)
-			for d := 0; d < km.numFeatures; d++ {
-				newCentroids[k][d] = 0
-			}
 		}
 		newLoss := 0.0
-		for n := 0; n < N; n++ {
-			x := data[n*km.numFeatures : (n+1)*km.numFeatures]
-
-			err := naiveMinIndecies(x, km.centroids, func(minCol int, minDist float64) error {
+		for r := range results {
+			for k := 0; k < km.numClusters; k++ {
 				for d := 0; d < km.numFeatures; d++ {
-					newCentroids[minCol][d] += x[d]
+					newCentroids[k][d] += r.centroids[k][d]
 				}
-				counts[minCol]++
-				newLoss += minDist
-				return nil
-			})
-			if err != nil {
-				return 0, 0.0, err
+				counts[k] += r.counts[k]
 			}
+			newLoss += r.loss
 		}
 		if math.Abs(loss-newLoss) < tol {
 			break
