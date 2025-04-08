@@ -83,7 +83,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 			eg.Go(func() error {
 				counts := make([]int, km.numClusters)
 				newCentroids := make([][]float64, km.numClusters)
-				for k := 0; k < km.numClusters; k++ {
+				for k := range km.numClusters {
 					newCentroids[k] = make([]float64, km.numFeatures)
 				}
 				loss := 0.0
@@ -91,7 +91,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 					x := data[n*km.numFeatures : (n+1)*km.numFeatures]
 
 					err := naiveMinIndecies(x, centroids, func(minCol int, minDist float64) error {
-						for d := 0; d < km.numFeatures; d++ {
+						for d := range km.numFeatures {
 							newCentroids[minCol][d] += x[d]
 						}
 						counts[minCol]++
