@@ -199,7 +199,7 @@ func (km *NaiveKMeans) initializeRandom(data []float64) {
 }
 
 func (km *NaiveKMeans) initializeGreedyKMeansPlusPlus(data []float64) {
-	L := 2 + int(math.Log(float64(km.numClusters)))
+	L := min(2+int(math.Log(float64(km.numClusters))), km.numClusters, km.numFeatures)
 
 	N := int(len(data) / km.numFeatures)
 	idx := rand.IntN(N)
