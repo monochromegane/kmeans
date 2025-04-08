@@ -71,9 +71,9 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 	var eg errgroup.Group
 	eg.SetLimit(numWorkers)
 
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		results := make(chan result, numWorkers)
-		for w := 0; w < numWorkers; w++ {
+		for w := range numWorkers {
 			centroids := km.centroids
 			start := w * chunkSize
 			end := start + chunkSize
@@ -117,13 +117,13 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 
 		counts := make([]int, km.numClusters)
 		newCentroids := make([][]float64, km.numClusters)
-		for k := 0; k < km.numClusters; k++ {
+		for k := range km.numClusters {
 			newCentroids[k] = make([]float64, km.numFeatures)
 		}
 		newLoss := 0.0
 		for r := range results {
-			for k := 0; k < km.numClusters; k++ {
-				for d := 0; d < km.numFeatures; d++ {
+			for k := range km.numClusters {
+				for d := range km.numFeatures {
 					newCentroids[k][d] += r.centroids[k][d]
 				}
 				counts[k] += r.counts[k]
@@ -134,11 +134,11 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 			break
 		}
 		loss = newLoss
-		for k := 0; k < km.numClusters; k++ {
+		for k := range km.numClusters {
 			if counts[k] == 0 {
 				continue
 			}
-			for d := 0; d < km.numFeatures; d++ {
+			for d := range km.numFeatures {
 				newCentroids[k][d] /= float64(counts[k])
 			}
 		}
@@ -159,7 +159,7 @@ func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int, minVal f
 	}
 
 	N := int(len(data) / km.numFeatures)
-	for n := 0; n < N; n++ {
+	for n := range N {
 		x := data[n*km.numFeatures : (n+1)*km.numFeatures]
 
 		err := naiveMinIndecies(x, km.centroids, func(minCol int, minDist float64) error {
@@ -315,7 +315,7 @@ func naiveMinIndeciesEarlyReturn(x []float64, centroids [][]float64, firstMinVal
 
 func naiveSquaredEuclideanDistance(x, y []float64) float64 {
 	sum := 0.0
-	for i := 0; i < len(x); i++ {
+	for i := range len(x) {
 		diff := x[i] - y[i]
 		sum += diff * diff
 	}
@@ -324,7 +324,7 @@ func naiveSquaredEuclideanDistance(x, y []float64) float64 {
 
 func naiveSquaredEuclideanDistanceEarlyReturn(x, y []float64, minVal float64) float64 {
 	sum := 0.0
-	for i := 0; i < len(x); i++ {
+	for i := range len(x) {
 		diff := x[i] - y[i]
 		sum += diff * diff
 		if sum > minVal {
