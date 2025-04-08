@@ -130,21 +130,30 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 			}
 			newLoss += r.loss
 		}
-		if math.Abs(loss-newLoss) < tol {
-			break
-		}
-		loss = newLoss
+
+		frobNorm := 0.0
+		centroidDiff := 0.0
 		for k := range km.numClusters {
 			if counts[k] == 0 {
 				continue
 			}
 			for d := range km.numFeatures {
 				newCentroids[k][d] /= float64(counts[k])
+
+				newCentroid := newCentroids[k][d]
+				diff := km.centroids[k][d] - newCentroid
+				centroidDiff += diff * diff
+				frobNorm += newCentroid * newCentroid
 			}
 		}
 
 		km.centroids = newCentroids
 		numIter = i
+
+		if math.Sqrt(centroidDiff)/(math.Sqrt(frobNorm)) < tol {
+			loss = newLoss
+			break
+		}
 	}
 
 	return numIter, loss, nil
