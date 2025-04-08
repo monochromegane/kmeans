@@ -130,6 +130,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 			}
 			newLoss += r.loss
 		}
+		loss = newLoss
 
 		frobNorm := 0.0
 		centroidDiff := 0.0
@@ -151,7 +152,6 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 		numIter = i
 
 		if math.Sqrt(centroidDiff)/(math.Sqrt(frobNorm)) < tol {
-			loss = newLoss
 			break
 		}
 	}
