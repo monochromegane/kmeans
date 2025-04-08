@@ -55,7 +55,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 	numIter := 0
 	N := int(len(data) / km.numFeatures)
 
-	numWorkers := runtime.GOMAXPROCS(0)
+	numWorkers := runtime.NumCPU()
 	chunkSize := N / numWorkers
 	if chunkSize == 0 {
 		chunkSize = 1
