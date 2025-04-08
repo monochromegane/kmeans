@@ -48,7 +48,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 	if km.initMethod == INIT_RANDOM {
 		km.initializeRandom(data)
 	} else if km.initMethod == INIT_KMEANS_PLUS_PLUS {
-		km.initializeKMeansPlusPlus(data)
+		km.initializeGreedyKMeansPlusPlus(data)
 	}
 
 	loss := math.Inf(1)
@@ -189,7 +189,9 @@ func (km *NaiveKMeans) initializeRandom(data []float64) {
 	}
 }
 
-func (km *NaiveKMeans) initializeKMeansPlusPlus(data []float64) {
+func (km *NaiveKMeans) initializeGreedyKMeansPlusPlus(data []float64) {
+	L := 2 + int(math.Log(float64(km.numClusters)))
+
 	N := int(len(data) / km.numFeatures)
 	idx := rand.IntN(N)
 	distances := make([]float64, N)
@@ -199,39 +201,84 @@ func (km *NaiveKMeans) initializeKMeansPlusPlus(data []float64) {
 	latestCentroid := make([][]float64, 1)
 	latestCentroid[0] = centroids[0]
 
-	for k := 1; k < km.numClusters; k++ {
-		cumSumDist := make([]float64, N)
-		for n := 0; n < N; n++ {
-			if k == 1 {
-				distances[n] = math.Inf(1)
+	cumSumDist := make([]float64, N)
+	for n := range N {
+		distances[n] = math.Inf(1)
+		x := data[n*km.numFeatures : (n+1)*km.numFeatures]
+		naiveMinIndeciesEarlyReturn(x, latestCentroid, distances[n], func(minCol int, minDist float64) error {
+			if minDist < distances[n] {
+				distances[n] = minDist
 			}
-			x := data[n*km.numFeatures : (n+1)*km.numFeatures]
-			naiveMinIndecies(x, latestCentroid, func(minCol int, minDist float64) error {
-				if minDist < distances[n] {
-					distances[n] = minDist
-				}
-				if n == 0 {
-					cumSumDist[n] = distances[n]
-				} else {
-					cumSumDist[n] = cumSumDist[n-1] + distances[n]
-				}
-				return nil
-			})
-		}
-
-		threshold := rand.Float64() * cumSumDist[N-1]
-		left, right := 0, N-1
-		var selectedIdx int
-		for left <= right {
-			mid := (left + right) / 2
-			if cumSumDist[mid] < threshold {
-				left = mid + 1
+			if n == 0 {
+				cumSumDist[n] = distances[n]
 			} else {
-				selectedIdx = mid
-				right = mid - 1
+				cumSumDist[n] = cumSumDist[n-1] + distances[n]
+			}
+			return nil
+		})
+	}
+
+	var bestCumSumDist []float64
+	var bestDistances []float64
+	for k := 1; k < km.numClusters; k++ {
+		bestLoss := math.Inf(1)
+		bestSelectedIdx := 0
+		for range L {
+			threshold := rand.Float64() * cumSumDist[N-1]
+
+			left, right := 0, N-1
+			var selectedIdx int
+			for left <= right {
+				mid := (left + right) / 2
+				if cumSumDist[mid] < threshold {
+					left = mid + 1
+				} else {
+					selectedIdx = mid
+					right = mid - 1
+				}
+			}
+
+			candidateCentroid := make([][]float64, 1)
+			candidateCentroid[0] = data[selectedIdx*km.numFeatures : (selectedIdx+1)*km.numFeatures]
+
+			candidateDistances := make([]float64, N)
+			for n := range N {
+				candidateDistances[n] = distances[n]
+			}
+			candidateCumSumDist := make([]float64, N)
+
+			loss := 0.0
+			for n := range N {
+				x := data[n*km.numFeatures : (n+1)*km.numFeatures]
+				err := naiveMinIndeciesEarlyReturn(x, candidateCentroid, distances[n], func(minCol int, minDist float64) error {
+					if minDist < distances[n] {
+						loss += minDist
+						candidateDistances[n] = minDist
+					} else {
+						loss += distances[n]
+					}
+					if n == 0 {
+						candidateCumSumDist[n] = candidateDistances[n]
+					} else {
+						candidateCumSumDist[n] = candidateCumSumDist[n-1] + candidateDistances[n]
+					}
+					return nil
+				})
+				if err != nil {
+					return
+				}
+			}
+			if loss < bestLoss {
+				bestLoss = loss
+				bestSelectedIdx = selectedIdx
+				bestCumSumDist = candidateCumSumDist
+				bestDistances = candidateDistances
 			}
 		}
-		x := data[selectedIdx*km.numFeatures : (selectedIdx+1)*km.numFeatures]
+		distances = bestDistances
+		cumSumDist = bestCumSumDist
+
+		x := data[bestSelectedIdx*km.numFeatures : (bestSelectedIdx+1)*km.numFeatures]
 		centroids = append(centroids, x)
 		latestCentroid[0] = x
 	}
@@ -242,6 +289,20 @@ func naiveMinIndecies(x []float64, centroids [][]float64, fn func(minCol int, mi
 	numClusters := len(centroids)
 	minIdx := 0
 	minVal := naiveSquaredEuclideanDistance(x, centroids[0])
+	for k := 1; k < numClusters; k++ {
+		val := naiveSquaredEuclideanDistanceEarlyReturn(x, centroids[k], minVal)
+		if val < minVal {
+			minVal = val
+			minIdx = k
+		}
+	}
+	return fn(minIdx, minVal)
+}
+
+func naiveMinIndeciesEarlyReturn(x []float64, centroids [][]float64, firstMinVal float64, fn func(minCol int, minDist float64) error) error {
+	numClusters := len(centroids)
+	minIdx := 0
+	minVal := naiveSquaredEuclideanDistanceEarlyReturn(x, centroids[0], firstMinVal)
 	for k := 1; k < numClusters; k++ {
 		val := naiveSquaredEuclideanDistanceEarlyReturn(x, centroids[k], minVal)
 		if val < minVal {
