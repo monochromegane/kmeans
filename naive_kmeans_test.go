@@ -1,6 +1,8 @@
 package kmeans
 
 import (
+	"bytes"
+	"encoding/gob"
 	"math"
 	"slices"
 	"testing"
@@ -20,7 +22,7 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 		{1.0, 1.0, 1.0},
 		{2.0, 2.0, 2.0},
 	}
-	km.centroids = initCentroids
+	km.state.Centroids = initCentroids
 
 	X := []float64{
 		1.0, 2.0, 3.0,
@@ -96,4 +98,45 @@ func TestNaiveKMeansPredict(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+func TestNaiveKMeansEncodeDecode(t *testing.T) {
+	numClusters := 3
+	numFeatures := 3
+	km, err := NewNaiveKMeans(numClusters, numFeatures, INIT_NONE)
+	if err != nil {
+		t.Fatalf("Failed to create NaiveKMeans: %v", err)
+	}
+	initCentroids := [][]float64{
+		{4.0, 5.0, 6.0},
+		{1.0, 1.0, 1.0},
+		{2.0, 2.0, 2.0},
+	}
+	km.state.Centroids = initCentroids
+
+	buf := new(bytes.Buffer)
+	err = km.Encode(gob.NewEncoder(buf))
+	if err != nil {
+		t.Fatalf("Failed to encode NaiveKMeans: %v", err)
+	}
+
+	km2, err := LoadNaiveKMeans(gob.NewDecoder(buf))
+	if err != nil {
+		t.Fatalf("Failed to load NaiveKMeans: %v", err)
+	}
+
+	if km.state.InitMethod != km2.state.InitMethod {
+		t.Fatalf("Expected initMethod to be %d, got %d", km.state.InitMethod, km2.state.InitMethod)
+	}
+	if km.state.NumClusters != km2.state.NumClusters {
+		t.Fatalf("Expected numClusters to be %d, got %d", km.state.NumClusters, km2.state.NumClusters)
+	}
+	if km.state.NumFeatures != km2.state.NumFeatures {
+		t.Fatalf("Expected numFeatures to be %d, got %d", km.state.NumFeatures, km2.state.NumFeatures)
+	}
+	for c := range numClusters {
+		if !floats.Equal(km.state.Centroids[c], km2.state.Centroids[c]) {
+			t.Fatalf("Expected centroids to be %v, got %v", km.state.Centroids, km2.state.Centroids)
+		}
+	}
 }

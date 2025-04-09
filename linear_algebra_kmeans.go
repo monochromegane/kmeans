@@ -1,6 +1,7 @@
 package kmeans
 
 import (
+	"encoding/gob"
 	"math"
 	"math/rand/v2"
 	"sort"
@@ -10,10 +11,14 @@ import (
 )
 
 type LinearAlgebraKMeans struct {
-	initMethod  int
-	numClusters int
-	numFeatures int
-	centroids   *mat.Dense
+	state *LinearAlgebraKMeansState
+}
+
+type LinearAlgebraKMeansState struct {
+	InitMethod  int
+	NumClusters int
+	NumFeatures int
+	Centroids   *mat.Dense
 }
 
 func NewLinearAlgebraKMeans(numClusters, numFeatures, initMethod int) (*LinearAlgebraKMeans, error) {
@@ -28,10 +33,23 @@ func NewLinearAlgebraKMeans(numClusters, numFeatures, initMethod int) (*LinearAl
 	}
 
 	return &LinearAlgebraKMeans{
-		initMethod:  initMethod,
-		numClusters: numClusters,
-		numFeatures: numFeatures,
-		centroids:   mat.NewDense(numClusters, numFeatures, nil),
+		state: &LinearAlgebraKMeansState{
+			InitMethod:  initMethod,
+			NumClusters: numClusters,
+			NumFeatures: numFeatures,
+			Centroids:   mat.NewDense(numClusters, numFeatures, nil),
+		},
+	}, nil
+}
+
+func LoadLinearAlgebraKMeans(dec *gob.Decoder) (*LinearAlgebraKMeans, error) {
+	state := &LinearAlgebraKMeansState{}
+	err := dec.Decode(state)
+	if err != nil {
+		return nil, err
+	}
+	return &LinearAlgebraKMeans{
+		state: state,
 	}, nil
 }
 
@@ -39,33 +57,33 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) (int
 	if len(data) == 0 {
 		return 0, 0.0, ErrEmptyData
 	}
-	if len(data)%km.numFeatures != 0 {
+	if len(data)%km.state.NumFeatures != 0 {
 		return 0, 0.0, ErrInvalidDataLength
 	}
-	if km.numClusters > len(data)/km.numFeatures {
+	if km.state.NumClusters > len(data)/km.state.NumFeatures {
 		return 0, 0.0, ErrFewerClustersThanData
 	}
 
-	N := int(len(data) / km.numFeatures)
-	X := mat.NewDense(N, km.numFeatures, data)
+	N := int(len(data) / km.state.NumFeatures)
+	X := mat.NewDense(N, km.state.NumFeatures, data)
 
 	xNorm := normVec(X)
-	XX := tile(N, km.numClusters, xNorm)
-	dist := mat.NewDense(N, km.numClusters, nil)
-	E := mat.NewDense(N, km.numClusters, nil)
-	ETE := mat.NewDense(km.numClusters, km.numClusters, nil)
-	invETEData := make([]float64, km.numClusters)
+	XX := tile(N, km.state.NumClusters, xNorm)
+	dist := mat.NewDense(N, km.state.NumClusters, nil)
+	E := mat.NewDense(N, km.state.NumClusters, nil)
+	ETE := mat.NewDense(km.state.NumClusters, km.state.NumClusters, nil)
+	invETEData := make([]float64, km.state.NumClusters)
 
-	if km.initMethod == INIT_RANDOM {
+	if km.state.InitMethod == INIT_RANDOM {
 		km.initializeRandom(X)
-	} else if km.initMethod == INIT_KMEANS_PLUS_PLUS {
+	} else if km.state.InitMethod == INIT_KMEANS_PLUS_PLUS {
 		km.initializeKMeansPlusPlus(X, xNorm)
 	}
 
 	loss := math.Inf(1)
 	numIter := 0
 	for i := 0; i < iter; i++ {
-		squaredEuclideanDistance(X, km.centroids, XX, dist)
+		squaredEuclideanDistance(X, km.state.Centroids, XX, dist)
 		E.Zero()
 		newLoss, err := membership(dist, E)
 		if err != nil {
@@ -77,13 +95,13 @@ func (km *LinearAlgebraKMeans) Train(data []float64, iter int, tol float64) (int
 		loss = newLoss
 
 		ETE.Mul(E.T(), E)
-		for k := 0; k < km.numClusters; k++ {
+		for k := 0; k < km.state.NumClusters; k++ {
 			invETEData[k] = 1.0 / ETE.At(k, k)
 		}
-		invETE := mat.NewDiagDense(km.numClusters, invETEData)
+		invETE := mat.NewDiagDense(km.state.NumClusters, invETEData)
 
-		km.centroids.Mul(E.T(), X)
-		km.centroids.Mul(invETE, km.centroids)
+		km.state.Centroids.Mul(E.T(), X)
+		km.state.Centroids.Mul(invETE, km.state.Centroids)
 		numIter = i
 	}
 	return numIter, loss, nil
@@ -93,37 +111,46 @@ func (km *LinearAlgebraKMeans) Predict(data []float64, fn func(row, minCol int, 
 	if len(data) == 0 {
 		return ErrEmptyData
 	}
-	if len(data)%km.numFeatures != 0 {
+	if len(data)%km.state.NumFeatures != 0 {
 		return ErrInvalidDataLength
 	}
 
-	N := int(len(data) / km.numFeatures)
-	X := mat.NewDense(N, km.numFeatures, data)
+	N := int(len(data) / km.state.NumFeatures)
+	X := mat.NewDense(N, km.state.NumFeatures, data)
 
 	xNorm := normVec(X)
-	XX := tile(N, km.numClusters, xNorm)
-	dist := mat.NewDense(N, km.numClusters, nil)
+	XX := tile(N, km.state.NumClusters, xNorm)
+	dist := mat.NewDense(N, km.state.NumClusters, nil)
 
-	squaredEuclideanDistance(X, km.centroids, XX, dist)
+	squaredEuclideanDistance(X, km.state.Centroids, XX, dist)
 	return minIndecies(dist, fn)
 }
 
 func (km *LinearAlgebraKMeans) Centroids() [][]float64 {
-	centroids := make([][]float64, km.numClusters)
-	for i := 0; i < km.numClusters; i++ {
-		centroids[i] = make([]float64, km.numFeatures)
-		for j := 0; j < km.numFeatures; j++ {
-			centroids[i][j] = km.centroids.At(i, j)
+	centroids := make([][]float64, km.state.NumClusters)
+	for i := 0; i < km.state.NumClusters; i++ {
+		centroids[i] = make([]float64, km.state.NumFeatures)
+		for j := 0; j < km.state.NumFeatures; j++ {
+			centroids[i][j] = km.state.Centroids.At(i, j)
 		}
 	}
 	return centroids
 }
 
+func (km *LinearAlgebraKMeans) Encode(enc *gob.Encoder) error {
+	return enc.Encode(km.state)
+}
+
+func (km *LinearAlgebraKMeans) Decode(dec *gob.Decoder) error {
+	km.state.Centroids = nil
+	return dec.Decode(km.state)
+}
+
 func (km *LinearAlgebraKMeans) initializeRandom(X *mat.Dense) {
 	N, _ := X.Dims()
-	indecies := rand.Perm(N)[:km.numClusters]
+	indecies := rand.Perm(N)[:km.state.NumClusters]
 	for i, idx := range indecies {
-		km.centroids.SetRow(i, X.RowView(idx).(*mat.VecDense).RawVector().Data)
+		km.state.Centroids.SetRow(i, X.RowView(idx).(*mat.VecDense).RawVector().Data)
 	}
 }
 
@@ -136,16 +163,16 @@ func (km *LinearAlgebraKMeans) initializeKMeansPlusPlus(X *mat.Dense, xNorm *mat
 	}
 
 	XX := tile(N, 1, xNorm)
-	centroidsData := make([]float64, km.numClusters*km.numFeatures)
+	centroidsData := make([]float64, km.state.NumClusters*km.state.NumFeatures)
 	latestCentroidData := X.RowView(idx).(*mat.VecDense).RawVector().Data
 	copy(centroidsData[0:len(latestCentroidData)], latestCentroidData)
-	latestCentroid := mat.NewDense(1, km.numFeatures, latestCentroidData)
+	latestCentroid := mat.NewDense(1, km.state.NumFeatures, latestCentroidData)
 
 	indecies := make([]int, N)
 	indecies[0] = idx
 	dist := mat.NewDense(N, 1, nil)
 
-	for k := 1; k < km.numClusters; k++ {
+	for k := 1; k < km.state.NumClusters; k++ {
 		squaredEuclideanDistance(X, latestCentroid, XX, dist)
 		minIndecies(dist, func(row, minCol int, minVal float64) error {
 			if minVal < distances[row] {
@@ -170,12 +197,12 @@ func (km *LinearAlgebraKMeans) initializeKMeansPlusPlus(X *mat.Dense, xNorm *mat
 			}
 			indecies[k] = idx
 			latestCentroidData = X.RowView(idx).(*mat.VecDense).RawVector().Data
-			copy(centroidsData[k*km.numFeatures:(k+1)*km.numFeatures], latestCentroidData)
-			latestCentroid = mat.NewDense(1, km.numFeatures, latestCentroidData)
+			copy(centroidsData[k*km.state.NumFeatures:(k+1)*km.state.NumFeatures], latestCentroidData)
+			latestCentroid = mat.NewDense(1, km.state.NumFeatures, latestCentroidData)
 			break
 		}
 	}
-	km.centroids = mat.NewDense(km.numClusters, km.numFeatures, centroidsData)
+	km.state.Centroids = mat.NewDense(km.state.NumClusters, km.state.NumFeatures, centroidsData)
 }
 
 func membership(dist *mat.Dense, E *mat.Dense) (float64, error) {
