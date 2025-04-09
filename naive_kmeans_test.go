@@ -20,7 +20,7 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 		{1.0, 1.0, 1.0},
 		{2.0, 2.0, 2.0},
 	}
-	km.centroids = initCentroids
+	km.state.centroids = initCentroids
 
 	X := []float64{
 		1.0, 2.0, 3.0,

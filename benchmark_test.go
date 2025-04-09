@@ -100,11 +100,11 @@ func BenchmarkNaiveKMeansClusters4Datapoints10000Features2Iter1(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
-	km.centroids = make([][]float64, numClusters)
+	km.state.centroids = make([][]float64, numClusters)
 	for k := 0; k < numClusters; k++ {
-		km.centroids[k] = make([]float64, numFeatures)
+		km.state.centroids[k] = make([]float64, numFeatures)
 		for d := 0; d < numFeatures; d++ {
-			km.centroids[k][d] = rand.Float64()
+			km.state.centroids[k][d] = rand.Float64()
 		}
 	}
 
@@ -323,11 +323,11 @@ func BenchmarkNaiveKMeansClusters4Datapoints10000Features1024Iter1(b *testing.B)
 	if err != nil {
 		b.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
-	km.centroids = make([][]float64, numClusters)
+	km.state.centroids = make([][]float64, numClusters)
 	for k := 0; k < numClusters; k++ {
-		km.centroids[k] = make([]float64, numFeatures)
+		km.state.centroids[k] = make([]float64, numFeatures)
 		for d := 0; d < numFeatures; d++ {
-			km.centroids[k][d] = rand.Float64()
+			km.state.centroids[k][d] = rand.Float64()
 		}
 	}
 
