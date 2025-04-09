@@ -21,7 +21,7 @@ func TestLinearAlgebraKMeansCentroids(t *testing.T) {
 		{1.0, 1.0, 1.0},
 		{2.0, 2.0, 2.0},
 	}
-	km.state.centroids = mat.NewDense(numClusters, numFeatures, slices.Concat(initCentroids...))
+	km.state.Centroids = mat.NewDense(numClusters, numFeatures, slices.Concat(initCentroids...))
 
 	X := []float64{
 		1.0, 2.0, 3.0,
