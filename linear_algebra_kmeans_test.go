@@ -1,6 +1,8 @@
 package kmeans
 
 import (
+	"bytes"
+	"encoding/gob"
 	"math"
 	"slices"
 	"testing"
@@ -96,4 +98,47 @@ func TestLinearAlgebraKMeansPredict(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+func TestLinearAlgebraKMeansEncodeDecode(t *testing.T) {
+	numClusters := 3
+	numFeatures := 3
+	km, err := NewLinearAlgebraKMeans(numClusters, numFeatures, INIT_NONE)
+	if err != nil {
+		t.Fatalf("Failed to create NaiveKMeans: %v", err)
+	}
+	initCentroids := [][]float64{
+		{4.0, 5.0, 6.0},
+		{1.0, 1.0, 1.0},
+		{2.0, 2.0, 2.0},
+	}
+	km.state.Centroids = mat.NewDense(numClusters, numFeatures, slices.Concat(initCentroids...))
+
+	buf := new(bytes.Buffer)
+	err = km.Encode(gob.NewEncoder(buf))
+	if err != nil {
+		t.Fatalf("Failed to encode NaiveKMeans: %v", err)
+	}
+
+	km2, err := LoadLinearAlgebraKMeans(gob.NewDecoder(buf))
+	if err != nil {
+		t.Fatalf("Failed to load NaiveKMeans: %v", err)
+	}
+
+	if km.state.InitMethod != km2.state.InitMethod {
+		t.Fatalf("Expected initMethod to be %d, got %d", km.state.InitMethod, km2.state.InitMethod)
+	}
+	if km.state.NumClusters != km2.state.NumClusters {
+		t.Fatalf("Expected numClusters to be %d, got %d", km.state.NumClusters, km2.state.NumClusters)
+	}
+	if km.state.NumFeatures != km2.state.NumFeatures {
+		t.Fatalf("Expected numFeatures to be %d, got %d", km.state.NumFeatures, km2.state.NumFeatures)
+	}
+	for i := 0; i < numClusters; i++ {
+		for j := 0; j < numFeatures; j++ {
+			if km.state.Centroids.At(i, j) != km2.state.Centroids.At(i, j) {
+				t.Fatalf("Expected centroid %d, %d to be %v, got %v", i, j, km.state.Centroids.At(i, j), km2.state.Centroids.At(i, j))
+			}
+		}
+	}
 }

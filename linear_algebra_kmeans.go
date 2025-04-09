@@ -1,6 +1,7 @@
 package kmeans
 
 import (
+	"encoding/gob"
 	"math"
 	"math/rand/v2"
 	"sort"
@@ -38,6 +39,17 @@ func NewLinearAlgebraKMeans(numClusters, numFeatures, initMethod int) (*LinearAl
 			NumFeatures: numFeatures,
 			Centroids:   mat.NewDense(numClusters, numFeatures, nil),
 		},
+	}, nil
+}
+
+func LoadLinearAlgebraKMeans(dec *gob.Decoder) (*LinearAlgebraKMeans, error) {
+	state := &LinearAlgebraKMeansState{}
+	err := dec.Decode(state)
+	if err != nil {
+		return nil, err
+	}
+	return &LinearAlgebraKMeans{
+		state: state,
 	}, nil
 }
 
@@ -123,6 +135,15 @@ func (km *LinearAlgebraKMeans) Centroids() [][]float64 {
 		}
 	}
 	return centroids
+}
+
+func (km *LinearAlgebraKMeans) Encode(enc *gob.Encoder) error {
+	return enc.Encode(km.state)
+}
+
+func (km *LinearAlgebraKMeans) Decode(dec *gob.Decoder) error {
+	km.state.Centroids = nil
+	return dec.Decode(km.state)
 }
 
 func (km *LinearAlgebraKMeans) initializeRandom(X *mat.Dense) {

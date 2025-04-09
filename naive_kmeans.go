@@ -1,6 +1,7 @@
 package kmeans
 
 import (
+	"encoding/gob"
 	"math"
 	"math/rand/v2"
 	"runtime"
@@ -37,6 +38,17 @@ func NewNaiveKMeans(numClusters, numFeatures, initMethod int) (*NaiveKMeans, err
 			NumFeatures: numFeatures,
 			Centroids:   make([][]float64, numClusters),
 		},
+	}, nil
+}
+
+func LoadNaiveKMeans(dec *gob.Decoder) (*NaiveKMeans, error) {
+	state := &NaiveKMeansState{}
+	err := dec.Decode(state)
+	if err != nil {
+		return nil, err
+	}
+	return &NaiveKMeans{
+		state: state,
 	}, nil
 }
 
@@ -194,6 +206,14 @@ func (km *NaiveKMeans) Centroids() [][]float64 {
 		copy(viewCentroids[i], centroid)
 	}
 	return viewCentroids
+}
+
+func (km *NaiveKMeans) Encode(enc *gob.Encoder) error {
+	return enc.Encode(km.state)
+}
+
+func (km *NaiveKMeans) Decode(dec *gob.Decoder) error {
+	return dec.Decode(km.state)
 }
 
 func (km *NaiveKMeans) initializeRandom(data []float64) {
