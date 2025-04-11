@@ -11,3 +11,25 @@ func WithInitMethod(method int) NewOption {
 		return nil
 	}
 }
+
+type TrainOption func(*trainConfig) error
+
+func WithMaxIterations(iter int) TrainOption {
+	return func(config *trainConfig) error {
+		if iter <= 0 {
+			return ErrInvalidMaxIterations
+		}
+		config.iter = iter
+		return nil
+	}
+}
+
+func WithTolerance(tol float32) TrainOption {
+	return func(config *trainConfig) error {
+		if tol <= 0 {
+			return ErrInvalidTolerance
+		}
+		config.tol = tol
+		return nil
+	}
+}

@@ -20,6 +20,11 @@ type KMeansState struct {
 	Centroids   [][]float32
 }
 
+type trainConfig struct {
+	iter int
+	tol  float32
+}
+
 func NewKMeans(numClusters, numFeatures int, opts ...NewOption) (*KMeans, error) {
 	if numClusters <= 0 {
 		return nil, ErrInvalidNumClusters
@@ -57,7 +62,7 @@ func LoadKMeans(dec *gob.Decoder) (*KMeans, error) {
 	}, nil
 }
 
-func (km *KMeans) Train(data []float32, iter int, tol float32) (int, float32, error) {
+func (km *KMeans) Train(data []float32, opts ...TrainOption) (int, float32, error) {
 	if len(data) == 0 {
 		return 0, 0.0, ErrEmptyData
 	}
@@ -66,6 +71,14 @@ func (km *KMeans) Train(data []float32, iter int, tol float32) (int, float32, er
 	}
 	if km.state.NumClusters > len(data)/km.state.NumFeatures {
 		return 0, 0.0, ErrFewerClustersThanData
+	}
+
+	config := &trainConfig{
+		iter: 100,
+		tol:  1e-6,
+	}
+	for _, opt := range opts {
+		opt(config)
 	}
 
 	if km.state.InitMethod == INIT_RANDOM {
@@ -94,7 +107,7 @@ func (km *KMeans) Train(data []float32, iter int, tol float32) (int, float32, er
 	var eg errgroup.Group
 	eg.SetLimit(numWorkers)
 
-	for i := range iter {
+	for i := range config.iter {
 		results := make(chan result, numWorkers)
 		for w := range numWorkers {
 			centroids := km.state.Centroids
@@ -174,7 +187,7 @@ func (km *KMeans) Train(data []float32, iter int, tol float32) (int, float32, er
 		km.state.Centroids = newCentroids
 		numIter = i
 
-		if math.Sqrt(float64(centroidDiff))/(math.Sqrt(float64(frobNorm))) < float64(tol) {
+		if math.Sqrt(float64(centroidDiff))/(math.Sqrt(float64(frobNorm))) < float64(config.tol) {
 			break
 		}
 	}
