@@ -15,14 +15,14 @@ func TestKMeansCentroids(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
-	initCentroids := [][]float64{
+	initCentroids := [][]float32{
 		{4.0, 5.0, 6.0},
 		{1.0, 1.0, 1.0},
 		{2.0, 2.0, 2.0},
 	}
 	km.state.Centroids = initCentroids
 
-	X := []float64{
+	X := []float32{
 		1.0, 2.0, 3.0,
 		4.0, 5.0, 6.0,
 		7.0, 8.0, 9.0,
@@ -33,7 +33,7 @@ func TestKMeansCentroids(t *testing.T) {
 		t.Fatalf("Failed to train NaiveKMeans: %v", err)
 	}
 
-	expectedCentroids := [][]float64{
+	expectedCentroids := [][]float32{
 		{5.5, 6.5, 7.5},
 		{-1.0, -2.0, -3.0},
 		{1.0, 2.0, 3.0},
@@ -50,7 +50,7 @@ func TestKMeansCentroids(t *testing.T) {
 	}
 
 	predictions := make([]int, len(centroids))
-	km.Predict(slices.Concat(centroids...), func(row, minCol int, minVal float64) error {
+	km.Predict(slices.Concat(centroids...), func(row, minCol int, minVal float32) error {
 		predictions[row] = minCol
 		return nil
 	})
@@ -70,7 +70,7 @@ func TestKMeansEncodeDecode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
-	initCentroids := [][]float64{
+	initCentroids := [][]float32{
 		{4.0, 5.0, 6.0},
 		{1.0, 1.0, 1.0},
 		{2.0, 2.0, 2.0},
@@ -104,13 +104,13 @@ func TestKMeansEncodeDecode(t *testing.T) {
 	}
 }
 
-func floatsEqual(a, b []float64) bool {
+func floatsEqual(a, b []float32) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	const epsilon = 1e-14
 	for i := range a {
-		if math.Abs(a[i]-b[i]) > epsilon {
+		if math.Abs(float64(a[i]-b[i])) > epsilon {
 			return false
 		}
 	}
