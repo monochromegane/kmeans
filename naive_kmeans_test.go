@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-func TestNaiveKMeansCentroids(t *testing.T) {
+func TestKMeansCentroids(t *testing.T) {
 	numClusters := 3
 	numFeatures := 3
-	km, err := NewNaiveKMeans(numClusters, numFeatures, INIT_NONE)
+	km, err := NewKMeans(numClusters, numFeatures, INIT_NONE)
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
@@ -63,10 +63,10 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 	}
 }
 
-func TestNaiveKMeansEncodeDecode(t *testing.T) {
+func TestKMeansEncodeDecode(t *testing.T) {
 	numClusters := 3
 	numFeatures := 3
-	km, err := NewNaiveKMeans(numClusters, numFeatures, INIT_NONE)
+	km, err := NewKMeans(numClusters, numFeatures, INIT_NONE)
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestNaiveKMeansEncodeDecode(t *testing.T) {
 		t.Fatalf("Failed to encode NaiveKMeans: %v", err)
 	}
 
-	km2, err := LoadNaiveKMeans(gob.NewDecoder(buf))
+	km2, err := LoadKMeans(gob.NewDecoder(buf))
 	if err != nil {
 		t.Fatalf("Failed to load NaiveKMeans: %v", err)
 	}
