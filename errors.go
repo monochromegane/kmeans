@@ -17,3 +17,5 @@ var ErrFewerClustersThanData = fmt.Errorf("number of clusters must be less than 
 var ErrInvalidMaxIterations = fmt.Errorf("max iterations must be greater than 0")
 
 var ErrInvalidTolerance = fmt.Errorf("tolerance must be greater than 0")
+
+var ErrInvalidConcurrency = fmt.Errorf("concurrency must be greater than 0")

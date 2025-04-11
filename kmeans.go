@@ -21,8 +21,9 @@ type KMeansState struct {
 }
 
 type trainConfig struct {
-	iter int
-	tol  float32
+	iter        int
+	tol         float32
+	concurrency int
 }
 
 func NewKMeans(numClusters, numFeatures int, opts ...NewOption) (*KMeans, error) {
@@ -74,8 +75,10 @@ func (km *KMeans) Train(data []float32, opts ...TrainOption) (int, float32, erro
 	}
 
 	config := &trainConfig{
-		iter: 100,
-		tol:  1e-6,
+		// Default values
+		iter:        100,
+		tol:         1e-4,
+		concurrency: runtime.NumCPU(),
 	}
 	for _, opt := range opts {
 		opt(config)
@@ -91,7 +94,7 @@ func (km *KMeans) Train(data []float32, opts ...TrainOption) (int, float32, erro
 	numIter := 0
 	N := int(len(data) / km.state.NumFeatures)
 
-	numWorkers := runtime.NumCPU()
+	numWorkers := config.concurrency
 	chunkSize := N / numWorkers
 	if chunkSize == 0 {
 		chunkSize = 1

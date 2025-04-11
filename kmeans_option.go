@@ -33,3 +33,13 @@ func WithTolerance(tol float32) TrainOption {
 		return nil
 	}
 }
+
+func WithConcurrency(concurrency int) TrainOption {
+	return func(config *trainConfig) error {
+		if concurrency <= 0 {
+			return ErrInvalidConcurrency
+		}
+		config.concurrency = concurrency
+		return nil
+	}
+}
