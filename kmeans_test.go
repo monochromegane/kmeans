@@ -11,7 +11,7 @@ import (
 func TestKMeansCentroids(t *testing.T) {
 	numClusters := 3
 	numFeatures := 3
-	km, err := NewKMeans(numClusters, numFeatures, INIT_NONE)
+	km, err := NewKMeans(numClusters, numFeatures, WithInitMethod(INIT_NONE))
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestKMeansCentroids(t *testing.T) {
 func TestKMeansEncodeDecode(t *testing.T) {
 	numClusters := 3
 	numFeatures := 3
-	km, err := NewKMeans(numClusters, numFeatures, INIT_NONE)
+	km, err := NewKMeans(numClusters, numFeatures, WithInitMethod(INIT_NONE))
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}

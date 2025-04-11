@@ -20,24 +20,29 @@ type KMeansState struct {
 	Centroids   [][]float32
 }
 
-func NewKMeans(numClusters, numFeatures, initMethod int) (*KMeans, error) {
+func NewKMeans(numClusters, numFeatures int, opts ...NewOption) (*KMeans, error) {
 	if numClusters <= 0 {
 		return nil, ErrInvalidNumClusters
 	}
 	if numFeatures <= 0 {
 		return nil, ErrInvalidNumFeatures
 	}
-	if initMethod != INIT_NONE && initMethod != INIT_KMEANS_PLUS_PLUS && initMethod != INIT_RANDOM {
-		return nil, ErrInvalidInitMethod
+
+	state := &KMeansState{
+		NumClusters: numClusters,
+		NumFeatures: numFeatures,
+		Centroids:   make([][]float32, numClusters),
+		InitMethod:  INIT_KMEANS_PLUS_PLUS, // Default value
+	}
+
+	for _, opt := range opts {
+		if err := opt(state); err != nil {
+			return nil, err
+		}
 	}
 
 	return &KMeans{
-		state: &KMeansState{
-			InitMethod:  initMethod,
-			NumClusters: numClusters,
-			NumFeatures: numFeatures,
-			Centroids:   make([][]float32, numClusters),
-		},
+		state: state,
 	}, nil
 }
 
