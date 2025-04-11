@@ -9,50 +9,61 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type NaiveKMeans struct {
-	state *NaiveKMeansState
+type KMeans struct {
+	state *KMeansState
 }
 
-type NaiveKMeansState struct {
+type KMeansState struct {
 	InitMethod  int
 	NumClusters int
 	NumFeatures int
-	Centroids   [][]float64
+	Centroids   [][]float32
 }
 
-func NewNaiveKMeans(numClusters, numFeatures, initMethod int) (*NaiveKMeans, error) {
+type trainConfig struct {
+	iter        int
+	tol         float32
+	concurrency int
+}
+
+func NewKMeans(numClusters, numFeatures int, opts ...NewOption) (*KMeans, error) {
 	if numClusters <= 0 {
 		return nil, ErrInvalidNumClusters
 	}
 	if numFeatures <= 0 {
 		return nil, ErrInvalidNumFeatures
 	}
-	if initMethod != INIT_NONE && initMethod != INIT_KMEANS_PLUS_PLUS && initMethod != INIT_RANDOM {
-		return nil, ErrInvalidInitMethod
+
+	state := &KMeansState{
+		NumClusters: numClusters,
+		NumFeatures: numFeatures,
+		Centroids:   make([][]float32, numClusters),
+		InitMethod:  INIT_KMEANS_PLUS_PLUS, // Default value
 	}
 
-	return &NaiveKMeans{
-		state: &NaiveKMeansState{
-			InitMethod:  initMethod,
-			NumClusters: numClusters,
-			NumFeatures: numFeatures,
-			Centroids:   make([][]float64, numClusters),
-		},
-	}, nil
-}
-
-func LoadNaiveKMeans(dec *gob.Decoder) (*NaiveKMeans, error) {
-	state := &NaiveKMeansState{}
-	err := dec.Decode(state)
-	if err != nil {
-		return nil, err
+	for _, opt := range opts {
+		if err := opt(state); err != nil {
+			return nil, err
+		}
 	}
-	return &NaiveKMeans{
+
+	return &KMeans{
 		state: state,
 	}, nil
 }
 
-func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float64, error) {
+func LoadKMeans(dec *gob.Decoder) (*KMeans, error) {
+	state := &KMeansState{}
+	err := dec.Decode(state)
+	if err != nil {
+		return nil, err
+	}
+	return &KMeans{
+		state: state,
+	}, nil
+}
+
+func (km *KMeans) Train(data []float32, opts ...TrainOption) (int, float32, error) {
 	if len(data) == 0 {
 		return 0, 0.0, ErrEmptyData
 	}
@@ -63,17 +74,27 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 		return 0, 0.0, ErrFewerClustersThanData
 	}
 
+	config := &trainConfig{
+		// Default values
+		iter:        100,
+		tol:         1e-4,
+		concurrency: runtime.NumCPU(),
+	}
+	for _, opt := range opts {
+		opt(config)
+	}
+
 	if km.state.InitMethod == INIT_RANDOM {
 		km.initializeRandom(data)
 	} else if km.state.InitMethod == INIT_KMEANS_PLUS_PLUS {
 		km.initializeGreedyKMeansPlusPlus(data)
 	}
 
-	loss := math.Inf(1)
+	loss := float32(math.Inf(1))
 	numIter := 0
 	N := int(len(data) / km.state.NumFeatures)
 
-	numWorkers := runtime.NumCPU()
+	numWorkers := config.concurrency
 	chunkSize := N / numWorkers
 	if chunkSize == 0 {
 		chunkSize = 1
@@ -81,15 +102,15 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 	}
 
 	type result struct {
-		centroids [][]float64
+		centroids [][]float32
 		counts    []int
-		loss      float64
+		loss      float32
 	}
 
 	var eg errgroup.Group
 	eg.SetLimit(numWorkers)
 
-	for i := range iter {
+	for i := range config.iter {
 		results := make(chan result, numWorkers)
 		for w := range numWorkers {
 			centroids := km.state.Centroids
@@ -100,15 +121,15 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 			}
 			eg.Go(func() error {
 				counts := make([]int, km.state.NumClusters)
-				newCentroids := make([][]float64, km.state.NumClusters)
+				newCentroids := make([][]float32, km.state.NumClusters)
 				for k := range km.state.NumClusters {
-					newCentroids[k] = make([]float64, km.state.NumFeatures)
+					newCentroids[k] = make([]float32, km.state.NumFeatures)
 				}
-				loss := 0.0
+				loss := float32(0.0)
 				for n := start; n < end; n++ {
 					x := data[n*km.state.NumFeatures : (n+1)*km.state.NumFeatures]
 
-					err := naiveMinIndecies(x, centroids, func(minCol int, minDist float64) error {
+					err := minIndecies(x, centroids, func(minCol int, minDist float32) error {
 						for d := range km.state.NumFeatures {
 							newCentroids[minCol][d] += x[d]
 						}
@@ -134,11 +155,11 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 		close(results)
 
 		counts := make([]int, km.state.NumClusters)
-		newCentroids := make([][]float64, km.state.NumClusters)
+		newCentroids := make([][]float32, km.state.NumClusters)
 		for k := range km.state.NumClusters {
-			newCentroids[k] = make([]float64, km.state.NumFeatures)
+			newCentroids[k] = make([]float32, km.state.NumFeatures)
 		}
-		newLoss := 0.0
+		newLoss := float32(0.0)
 		for r := range results {
 			for k := range km.state.NumClusters {
 				for d := range km.state.NumFeatures {
@@ -150,14 +171,14 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 		}
 		loss = newLoss
 
-		frobNorm := 0.0
-		centroidDiff := 0.0
+		frobNorm := float32(0.0)
+		centroidDiff := float32(0.0)
 		for k := range km.state.NumClusters {
 			if counts[k] == 0 {
 				continue
 			}
 			for d := range km.state.NumFeatures {
-				newCentroids[k][d] /= float64(counts[k])
+				newCentroids[k][d] /= float32(counts[k])
 
 				newCentroid := newCentroids[k][d]
 				diff := km.state.Centroids[k][d] - newCentroid
@@ -169,7 +190,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 		km.state.Centroids = newCentroids
 		numIter = i
 
-		if math.Sqrt(centroidDiff)/(math.Sqrt(frobNorm)) < tol {
+		if math.Sqrt(float64(centroidDiff))/(math.Sqrt(float64(frobNorm))) < float64(config.tol) {
 			break
 		}
 	}
@@ -177,7 +198,7 @@ func (km *NaiveKMeans) Train(data []float64, iter int, tol float64) (int, float6
 	return numIter, loss, nil
 }
 
-func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int, minVal float64) error) error {
+func (km *KMeans) Predict(data []float32, fn func(row, minCol int, minVal float32) error) error {
 	if len(data) == 0 {
 		return ErrEmptyData
 	}
@@ -189,7 +210,7 @@ func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int, minVal f
 	for n := range N {
 		x := data[n*km.state.NumFeatures : (n+1)*km.state.NumFeatures]
 
-		err := naiveMinIndecies(x, km.state.Centroids, func(minCol int, minDist float64) error {
+		err := minIndecies(x, km.state.Centroids, func(minCol int, minDist float32) error {
 			return fn(n, minCol, minDist)
 		})
 		if err != nil {
@@ -199,24 +220,24 @@ func (km *NaiveKMeans) Predict(data []float64, fn func(row, minCol int, minVal f
 	return nil
 }
 
-func (km *NaiveKMeans) Centroids() [][]float64 {
-	viewCentroids := make([][]float64, len(km.state.Centroids))
+func (km *KMeans) Centroids() [][]float32 {
+	viewCentroids := make([][]float32, len(km.state.Centroids))
 	for i, centroid := range km.state.Centroids {
-		viewCentroids[i] = make([]float64, len(centroid))
+		viewCentroids[i] = make([]float32, len(centroid))
 		copy(viewCentroids[i], centroid)
 	}
 	return viewCentroids
 }
 
-func (km *NaiveKMeans) Encode(enc *gob.Encoder) error {
+func (km *KMeans) Encode(enc *gob.Encoder) error {
 	return enc.Encode(km.state)
 }
 
-func (km *NaiveKMeans) Decode(dec *gob.Decoder) error {
+func (km *KMeans) Decode(dec *gob.Decoder) error {
 	return dec.Decode(km.state)
 }
 
-func (km *NaiveKMeans) initializeRandom(data []float64) {
+func (km *KMeans) initializeRandom(data []float32) {
 	N := int(len(data) / km.state.NumFeatures)
 	indecies := rand.Perm(N)[:km.state.NumClusters]
 	for i, idx := range indecies {
@@ -224,23 +245,23 @@ func (km *NaiveKMeans) initializeRandom(data []float64) {
 	}
 }
 
-func (km *NaiveKMeans) initializeGreedyKMeansPlusPlus(data []float64) {
+func (km *KMeans) initializeGreedyKMeansPlusPlus(data []float32) {
 	L := min(2+int(math.Log(float64(km.state.NumClusters))), km.state.NumClusters, km.state.NumFeatures)
 
 	N := int(len(data) / km.state.NumFeatures)
 	idx := rand.IntN(N)
-	distances := make([]float64, N)
-	centroids := [][]float64{
+	distances := make([]float32, N)
+	centroids := [][]float32{
 		data[idx*km.state.NumFeatures : (idx+1)*km.state.NumFeatures],
 	}
-	latestCentroid := make([][]float64, 1)
+	latestCentroid := make([][]float32, 1)
 	latestCentroid[0] = centroids[0]
 
-	cumSumDist := make([]float64, N)
+	cumSumDist := make([]float32, N)
 	for n := range N {
-		distances[n] = math.Inf(1)
+		distances[n] = float32(math.Inf(1))
 		x := data[n*km.state.NumFeatures : (n+1)*km.state.NumFeatures]
-		naiveMinIndeciesEarlyReturn(x, latestCentroid, distances[n], func(minCol int, minDist float64) error {
+		minIndeciesEarlyReturn(x, latestCentroid, distances[n], func(minCol int, minDist float32) error {
 			if minDist < distances[n] {
 				distances[n] = minDist
 			}
@@ -253,13 +274,13 @@ func (km *NaiveKMeans) initializeGreedyKMeansPlusPlus(data []float64) {
 		})
 	}
 
-	var bestCumSumDist []float64
-	var bestDistances []float64
+	var bestCumSumDist []float32
+	var bestDistances []float32
 	for k := 1; k < km.state.NumClusters; k++ {
-		bestLoss := math.Inf(1)
+		bestLoss := float32(math.Inf(1))
 		bestSelectedIdx := 0
 		for range L {
-			threshold := rand.Float64() * cumSumDist[N-1]
+			threshold := rand.Float32() * cumSumDist[N-1]
 
 			left, right := 0, N-1
 			var selectedIdx int
@@ -273,19 +294,19 @@ func (km *NaiveKMeans) initializeGreedyKMeansPlusPlus(data []float64) {
 				}
 			}
 
-			candidateCentroid := make([][]float64, 1)
+			candidateCentroid := make([][]float32, 1)
 			candidateCentroid[0] = data[selectedIdx*km.state.NumFeatures : (selectedIdx+1)*km.state.NumFeatures]
 
-			candidateDistances := make([]float64, N)
+			candidateDistances := make([]float32, N)
 			for n := range N {
 				candidateDistances[n] = distances[n]
 			}
-			candidateCumSumDist := make([]float64, N)
+			candidateCumSumDist := make([]float32, N)
 
-			loss := 0.0
+			loss := float32(0.0)
 			for n := range N {
 				x := data[n*km.state.NumFeatures : (n+1)*km.state.NumFeatures]
-				err := naiveMinIndeciesEarlyReturn(x, candidateCentroid, distances[n], func(minCol int, minDist float64) error {
+				err := minIndeciesEarlyReturn(x, candidateCentroid, distances[n], func(minCol int, minDist float32) error {
 					if minDist < distances[n] {
 						loss += minDist
 						candidateDistances[n] = minDist
@@ -320,12 +341,12 @@ func (km *NaiveKMeans) initializeGreedyKMeansPlusPlus(data []float64) {
 	km.state.Centroids = centroids
 }
 
-func naiveMinIndecies(x []float64, centroids [][]float64, fn func(minCol int, minDist float64) error) error {
+func minIndecies(x []float32, centroids [][]float32, fn func(minCol int, minDist float32) error) error {
 	numClusters := len(centroids)
 	minIdx := 0
-	minVal := naiveSquaredEuclideanDistance(x, centroids[0])
+	minVal := squaredEuclideanDistance(x, centroids[0])
 	for k := 1; k < numClusters; k++ {
-		val := naiveSquaredEuclideanDistanceEarlyReturn(x, centroids[k], minVal)
+		val := squaredEuclideanDistanceEarlyReturn(x, centroids[k], minVal)
 		if val < minVal {
 			minVal = val
 			minIdx = k
@@ -334,12 +355,12 @@ func naiveMinIndecies(x []float64, centroids [][]float64, fn func(minCol int, mi
 	return fn(minIdx, minVal)
 }
 
-func naiveMinIndeciesEarlyReturn(x []float64, centroids [][]float64, firstMinVal float64, fn func(minCol int, minDist float64) error) error {
+func minIndeciesEarlyReturn(x []float32, centroids [][]float32, firstMinVal float32, fn func(minCol int, minDist float32) error) error {
 	numClusters := len(centroids)
 	minIdx := 0
-	minVal := naiveSquaredEuclideanDistanceEarlyReturn(x, centroids[0], firstMinVal)
+	minVal := squaredEuclideanDistanceEarlyReturn(x, centroids[0], firstMinVal)
 	for k := 1; k < numClusters; k++ {
-		val := naiveSquaredEuclideanDistanceEarlyReturn(x, centroids[k], minVal)
+		val := squaredEuclideanDistanceEarlyReturn(x, centroids[k], minVal)
 		if val < minVal {
 			minVal = val
 			minIdx = k
@@ -348,8 +369,8 @@ func naiveMinIndeciesEarlyReturn(x []float64, centroids [][]float64, firstMinVal
 	return fn(minIdx, minVal)
 }
 
-func naiveSquaredEuclideanDistance(x, y []float64) float64 {
-	sum := 0.0
+func squaredEuclideanDistance(x, y []float32) float32 {
+	sum := float32(0.0)
 	for i := range len(x) {
 		diff := x[i] - y[i]
 		sum += diff * diff
@@ -357,8 +378,8 @@ func naiveSquaredEuclideanDistance(x, y []float64) float64 {
 	return sum
 }
 
-func naiveSquaredEuclideanDistanceEarlyReturn(x, y []float64, minVal float64) float64 {
-	sum := 0.0
+func squaredEuclideanDistanceEarlyReturn(x, y []float32, minVal float32) float32 {
+	sum := float32(0.0)
 	for i := range len(x) {
 		diff := x[i] - y[i]
 		sum += diff * diff

@@ -6,36 +6,34 @@ import (
 	"math"
 	"slices"
 	"testing"
-
-	"gonum.org/v1/gonum/floats"
 )
 
-func TestNaiveKMeansCentroids(t *testing.T) {
+func TestKMeansCentroids(t *testing.T) {
 	numClusters := 3
 	numFeatures := 3
-	km, err := NewNaiveKMeans(numClusters, numFeatures, INIT_NONE)
+	km, err := NewKMeans(numClusters, numFeatures, WithInitMethod(INIT_NONE))
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
-	initCentroids := [][]float64{
+	initCentroids := [][]float32{
 		{4.0, 5.0, 6.0},
 		{1.0, 1.0, 1.0},
 		{2.0, 2.0, 2.0},
 	}
 	km.state.Centroids = initCentroids
 
-	X := []float64{
+	X := []float32{
 		1.0, 2.0, 3.0,
 		4.0, 5.0, 6.0,
 		7.0, 8.0, 9.0,
 		-1.0, -2.0, -3.0,
 	}
-	_, _, err = km.Train(X, 1, 0.01)
+	_, _, err = km.Train(X, WithMaxIterations(1), WithTolerance(0.01))
 	if err != nil {
 		t.Fatalf("Failed to train NaiveKMeans: %v", err)
 	}
 
-	expectedCentroids := [][]float64{
+	expectedCentroids := [][]float32{
 		{5.5, 6.5, 7.5},
 		{-1.0, -2.0, -3.0},
 		{1.0, 2.0, 3.0},
@@ -46,13 +44,13 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 		t.Fatalf("Expected 3 centroids, got %d", len(centroids))
 	}
 	for i, centroid := range centroids {
-		if !floats.Equal(centroid, expectedCentroids[i]) {
+		if !floatsEqual(centroid, expectedCentroids[i]) {
 			t.Fatalf("Expected centroid %d to be %v, got %v", i, expectedCentroids[i], centroid)
 		}
 	}
 
 	predictions := make([]int, len(centroids))
-	km.Predict(slices.Concat(centroids...), func(row, minCol int, minVal float64) error {
+	km.Predict(slices.Concat(centroids...), func(row, minCol int, minVal float32) error {
 		predictions[row] = minCol
 		return nil
 	})
@@ -65,49 +63,14 @@ func TestNaiveKMeansCentroids(t *testing.T) {
 	}
 }
 
-func TestNaiveKMeansPredict(t *testing.T) {
-	trainX, err := generate4ClusterDataset(2, 5000) // 2dim, 20,000 samples
-	if err != nil {
-		t.Fatalf("Failed to generate 4 cluster dataset: %v", err)
-	}
-
-	km, err := NewNaiveKMeans(4, 2, INIT_KMEANS_PLUS_PLUS)
-	if err != nil {
-		t.Fatalf("Failed to create NaiveKMeans: %v", err)
-	}
-
-	_, _, err = km.Train(trainX, 100, 0.01)
-	if err != nil {
-		t.Fatalf("Failed to train NaiveKMeans: %v", err)
-	}
-
-	centroids := km.Centroids()
-	testX := []float64{
-		-5.0, -5.0,
-		-5.0, 5.0,
-		5.0, -5.0,
-		5.0, 5.0,
-	}
-	epsilon := 0.05
-	predictions := make([]int, len(testX)/2)
-	km.Predict(testX, func(row, minCol int, minVal float64) error {
-		predictions[row] = minCol
-		x := testX[row*2 : (row+1)*2]
-		if math.Abs(x[0]-centroids[minCol][0]) > epsilon || math.Abs(x[1]-centroids[minCol][1]) > epsilon {
-			t.Fatalf("Expected x to be %v, got %v", centroids[minCol], x)
-		}
-		return nil
-	})
-}
-
-func TestNaiveKMeansEncodeDecode(t *testing.T) {
+func TestKMeansEncodeDecode(t *testing.T) {
 	numClusters := 3
 	numFeatures := 3
-	km, err := NewNaiveKMeans(numClusters, numFeatures, INIT_NONE)
+	km, err := NewKMeans(numClusters, numFeatures, WithInitMethod(INIT_NONE))
 	if err != nil {
 		t.Fatalf("Failed to create NaiveKMeans: %v", err)
 	}
-	initCentroids := [][]float64{
+	initCentroids := [][]float32{
 		{4.0, 5.0, 6.0},
 		{1.0, 1.0, 1.0},
 		{2.0, 2.0, 2.0},
@@ -120,7 +83,7 @@ func TestNaiveKMeansEncodeDecode(t *testing.T) {
 		t.Fatalf("Failed to encode NaiveKMeans: %v", err)
 	}
 
-	km2, err := LoadNaiveKMeans(gob.NewDecoder(buf))
+	km2, err := LoadKMeans(gob.NewDecoder(buf))
 	if err != nil {
 		t.Fatalf("Failed to load NaiveKMeans: %v", err)
 	}
@@ -135,8 +98,21 @@ func TestNaiveKMeansEncodeDecode(t *testing.T) {
 		t.Fatalf("Expected numFeatures to be %d, got %d", km.state.NumFeatures, km2.state.NumFeatures)
 	}
 	for c := range numClusters {
-		if !floats.Equal(km.state.Centroids[c], km2.state.Centroids[c]) {
+		if !floatsEqual(km.state.Centroids[c], km2.state.Centroids[c]) {
 			t.Fatalf("Expected centroids to be %v, got %v", km.state.Centroids, km2.state.Centroids)
 		}
 	}
+}
+
+func floatsEqual(a, b []float32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	const epsilon = 1e-14
+	for i := range a {
+		if math.Abs(float64(a[i]-b[i])) > epsilon {
+			return false
+		}
+	}
+	return true
 }

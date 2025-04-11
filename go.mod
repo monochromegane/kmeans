@@ -1,8 +1,5 @@
 module github.com/monochromegane/kmeans
 
-go 1.24.1
+go 1.24.2
 
-require (
-	golang.org/x/sync v0.13.0
-	gonum.org/v1/gonum v0.16.0
-)
+require golang.org/x/sync v0.13.0
